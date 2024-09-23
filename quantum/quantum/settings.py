@@ -25,8 +25,6 @@ SECRET_KEY = 'django-insecure-v#n0!p_y&g=-$*1=y&z26zv-pb4n1xg8ur8ezd)k!_%65eb!ds
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -37,7 +35,21 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'api',
+    'django_extensions',
+    'sslserver',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'rest_framework.parsers.JSONParser',
+    ),
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -121,3 +133,15 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Ajouter les configurations pour HTTPS en mode local
+# Désactiver la redirection automatique vers HTTPS (utile si vous testez à la fois HTTP
+# et HTTPS en local)
+SECURE_SSL_REDIRECT = False
+
+# Autoriser toutes les hôtes dans un environnement de développement
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+# Désactiver les cookies sécurisés si vous testez uniquement en local avec HTTPS
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
