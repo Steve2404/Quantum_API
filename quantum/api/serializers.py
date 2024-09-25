@@ -5,7 +5,7 @@ from .models import Sae, UninitKey, Key
 class SaeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sae
-        fields = ['id', 'sae_certificate_serial', 'kme_id']
+        fields = ['id', 'sae_certificate_serial', 'kme']
 
 
 class UninitKeySerializer(serializers.ModelSerializer):

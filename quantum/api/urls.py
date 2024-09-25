@@ -7,10 +7,13 @@ router = DefaultRouter()
 
 # Enregistrer les routes pour les ViewSets
 router.register(r'uninitkeys', UninitKeyViewSet, basename='uninitkeys')  # Pour les clés non initialisées
-router.register(r'keys', KeyViewSet, basename='keys')  # Pour les clés initialisées
+router.register(r'Keys', KeyViewSet, basename='Keys')  # Pour les clés initialisées
 router.register(r'saes', SaeViewSet, basename='saes')  # Pour les SAE
 
 # Ajouter les routes dans les URLs principales de l'application
 urlpatterns = [
-    path('', include(router.urls)),  # Inclure les routes générées par le routeur
+    path('v1/', include(router.urls)),
+    path('v1/keys/', include([
+        path('<str:slave_sae_id>/status/', KeyViewSet.as_view({'get': 'get_status'}), name='status')
+    ]))
 ]
