@@ -17,4 +17,4 @@ class UninitKeySerializer(serializers.ModelSerializer):
 class KeySerializer(serializers.ModelSerializer):
     class Meta:
         model = Key
-        fields = ['id', 'key_uuid', 'key', 'origin_sae', 'target_sae']
+        fields = ['key_uuid', 'key_data', 'origin_sae', 'target_sae']

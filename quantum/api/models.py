@@ -51,11 +51,11 @@ class Key(models.Model):
     """
     Modèle pour les clés assignées entre SAE d'origine et SAE cible.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    key_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    key = models.BinaryField()  # Clé attribuée
-    origin_sae = models.ForeignKey(Sae, related_name='origin_keys', on_delete=models.CASCADE)  # SAE d'origine
-    target_sae = models.ForeignKey(Sae, related_name='target_keys', on_delete=models.CASCADE)  # SAE cible
+    key_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    key_data = models.BinaryField()  # Stockage binaire de la clé
+    origin_sae = models.ForeignKey('Sae', related_name='origin_keys', on_delete=models.CASCADE)
+    target_sae = models.ForeignKey('Sae', related_name='target_keys', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Key {self.key_uuid}"

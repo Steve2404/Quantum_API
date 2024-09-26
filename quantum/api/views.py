@@ -85,3 +85,38 @@ class KeyViewSet(viewsets.ModelViewSet):
             "max_SAE_ID_count": source_kme.max_SAE_ID_count
         }
         return Response(status_data)
+
+    @action(detail=True, methods=['post'], url_path='enc_keys')
+    def get_key(self, request, slave_sae_id=None):
+        """
+        Récupérer une clé déjà échangée entre SAE maître et SAE esclave.
+        """
+        try:
+            # Récupérer les SAEs maître et esclave
+            slave_sae = Sae.objects.get(id=slave_sae_id)
+            master_sae = Sae.objects.get(id=request.data.get('master_sae_id'))
+        except Sae.DoesNotExist:
+            return Response({"error": "SAE introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        if key := Key.objects.filter(
+            origin_sae=master_sae, target_sae=slave_sae
+        ).first():
+            # Si une clé existe déjà, renvoyer cette clé
+            response_data = {
+                "key_ID": str(key.key_uuid),
+                "key": key.key_data.decode('utf-8')  # Exemple : la clé peut être encodée en base64
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
+        else:
+            # Sinon, générer une nouvelle clé et la sauvegarder
+            new_key_data = os.urandom(32)  # Exemple : génération d'une clé de 256 bits
+            new_key = Key.objects.create(
+                key_data=new_key_data,
+                origin_sae=master_sae,
+                target_sae=slave_sae
+            )
+            response_data = {
+                "key_ID": str(new_key.key_uuid),
+                "key": new_key.key_data.decode('utf-8')  # Exemple : clé encodée
+            }
+            return Response(response_data, status=status.HTTP_201_CREATED)
