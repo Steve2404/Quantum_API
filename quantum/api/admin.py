@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from api.models import Kme, Sae
+from api.models import KME, SAE
 
-admin.site.register(Kme)
-admin.site.register(Sae)
+admin.site.register(KME)
+admin.site.register(SAE)

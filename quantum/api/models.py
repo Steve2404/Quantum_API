@@ -2,60 +2,82 @@ import uuid
 from django.db import models
 
 
-class Kme(models.Model):
+class KME(models.Model):
     """ Modèle pour représenter une entité KME. """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kme_id = models.UUIDField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
-    key_size = models.IntegerField(default=256)  # Taille par défaut des clés
+    hostname = models.CharField(max_length=255)  # Nom d'hôte ou adresse IP
+    certificate = models.BinaryField(null=True, blank=True)
     stored_key_count = models.IntegerField(default=0)  # Nombre de clés stockées
-    max_key_count = models.IntegerField(default=10000)  # Nombre maximum de clés
-    max_key_per_request = models.IntegerField(default=1)  # Nombre max de clés par requête
-    max_key_size = models.IntegerField(default=256)  # Taille maximale de clé
-    min_key_size = models.IntegerField(default=128)  # Taille minimale de clé
-    max_SAE_ID_count = models.IntegerField(default=0)  # Multicast max pour SAE
+    max_key_count = models.IntegerField(default=100000)
+    max_key_per_request = models.IntegerField(default=128)
+    max_key_size = models.IntegerField(default=1024)
+    min_key_size = models.IntegerField(default=64)
+    key_size = models.IntegerField(default=352)
+    max_SAE_ID_count = models.IntegerField(default=0)  # Maximum de SAEs supplémentaires dans une requête multicast
 
     def __str__(self):
-        return f"KME- {self.name}: {self.id}"
+        return f"KME- {self.name}: {self.kme_id}"
 
 
-class Sae(models.Model):
+class SAE(models.Model):
     """
     Modèle pour les entités SAE (Subscriber Authentication Entity).
     Chaque SAE est associée à un KME et possède un certificat d'authentification.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, default='user', null=True)
-    sae_certificate_serial = models.BinaryField(null=True, blank=True)  # Stockage du certificat du SAE en binaire
-    kme = models.ForeignKey(Kme, on_delete=models.CASCADE, null=True, blank=True)
-    master_sae = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL)
+    sae_id = models.UUIDField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    kme = models.ForeignKey(KME, related_name='saes', on_delete=models.CASCADE)  # Kme connecté à plusieurs SAE
+    is_master = models.BooleanField(default=False)  # Indique si le SAE est maître
+    sae_certificate_serial = models.BinaryField(null=True, blank=True)
+    # Relation avec le SAE avec qui il communique
+    communicates_with = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return f"SAE- {self.name}: {self.id}"
-
-
-class UninitKey(models.Model):
-    """
-    Modèle pour les clés non initialisées.
-    Elles sont stockées avant d'être assignées à des SAE.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # UUID pour chaque clé non initialisée
-    key_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # Identifiant unique de la clé
-    key = models.BinaryField()  # Clé elle-même, stockée sous forme binaire
-    other_kme_id = models.IntegerField()  # Référence à un autre KME si la clé est partagée
-
-    def __str__(self):
-        return f"UninitKey {self.key_uuid}"
+        return f"SAE- {self.name}: {self.sae_id}"
 
 
 class Key(models.Model):
     """
     Modèle pour les clés assignées entre SAE d'origine et SAE cible.
     """
-    key_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    key_data = models.BinaryField()  # Stockage binaire de la clé
-    origin_sae = models.ForeignKey('Sae', related_name='origin_keys', on_delete=models.CASCADE)
-    target_sae = models.ForeignKey('Sae', related_name='target_keys', on_delete=models.CASCADE)
+    key_id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False)
+    key_data = models.BinaryField()
+    origin_sae = models.ForeignKey(SAE, related_name='origin_keys', on_delete=models.CASCADE)  # SAE maître
+    target_saes = models.ManyToManyField(SAE, related_name='target_keys')  # SAEs esclaves
     created_at = models.DateTimeField(auto_now_add=True)
+    size = models.IntegerField(default=352)
 
     def __str__(self):
-        return f"Key {self.key_uuid}"
+        return f"Key {self.key_id} (size: {self.size} bits)"
+
+
+class KMEConnection(models.Model):
+    source_kme = models.ForeignKey(KME, related_name='outgoing_connections', on_delete=models.CASCADE)
+    target_kme = models.ForeignKey(KME, related_name='incoming_connections', on_delete=models.CASCADE)
+    connection_certificate = models.BinaryField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Connection from {self.source_kme} to {self.target_kme}"
+
+
+class KeyMaterial(models.Model):
+    key_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
+    encrypted_key = models.TextField()  # La clé chiffrée (en base64)
+    iv = models.TextField()  # Le vecteur d'initialisation AES
+    consult_by = models.ManyToManyField(SAE, related_name='consulted_keys')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+def update_sae_communication(master_sae, slave_sae):
+    """
+    Met à jour les relations de communication entre SAE maître et SAE esclave.
+    """
+    master_sae.communicates_with = slave_sae
+    slave_sae.communicates_with = master_sae
+    master_sae.save()
+    slave_sae.save()
+
+
+
+
