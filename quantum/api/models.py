@@ -1,9 +1,10 @@
 import uuid
 from django.db import models
+from django.utils.translation import gettext as _
 
 
 class KME(models.Model):
-    """ Modèle pour représenter une entité KME. """
+    _(""" Modèle pour représenter une entité KME. """)
     kme_id = models.UUIDField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     hostname = models.CharField(max_length=255)  # Nom d'hôte ou adresse IP

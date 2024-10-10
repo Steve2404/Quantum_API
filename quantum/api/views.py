@@ -1,3 +1,5 @@
+from django.utils.translation import gettext as _
+from django.utils import translation
 from Crypto.Random import get_random_bytes
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -9,16 +11,19 @@ from .service import store_generated_keys, update_kme_key_count, create_kme_conn
 
 
 class KMEViewSet(viewsets.ViewSet):
-    """
+    translation.activate('de')
+    _("""
     ViewSet pour gérer les requêtes liées au KME.
-    """
+    """)
 
     @action(detail=True, methods=['get'], url_path='status')
     def get_status(self, request, pk=None):
+
         """
-        Endpoint pour récupérer le statut des clés pour un SAE esclave.
-        https://{KME_hostname}/api/v1/keys/{slave_SAE_ID}/status
+        Endpoint pour récupérer le statut des clés pour un SAE esclave. https://{KME_hostname}/api/v1/keys/{slave_SAE_ID}/status
+            
         """
+
         # Récupérer le SAE esclave via son ID (pk)
         try:
             slave_sae = SAE.objects.get(sae_id=pk)
@@ -32,7 +37,7 @@ class KMEViewSet(viewsets.ViewSet):
         master_sae = slave_sae.communicates_with
 
         if not master_sae:
-            return Response({"error": "No master SAE found for this KME"}, status=404)
+            return Response({"error": _("No master SAE found for this KME")}, status=404)
 
         # Récupérer le KME du SAE maître
         target_kme = master_sae.kme
@@ -58,19 +63,19 @@ class KMEViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post', 'get'], url_path='enc_keys')
     def get_key(self, request, pk=None):
-        """
+        _("""
         Endpoint pour générer ou récupérer les clés (enc_keys).
         POST : Générer des clés (utilisé par le SAE maître).
         GET : Récupérer les clés générées (utilisé par le SAE esclave).
         https://{KME_hostname}/api/v1/keys/{slave_SAE_ID}/enc_keys
-        """
+        """)
 
         # Récupérer le SAE esclave
         try:
             slave_sae = SAE.objects.get(sae_id=pk)
             kme_slave = KME.objects.get(kme_id=slave_sae.kme_id)
         except (SAE.DoesNotExist, KME.DoesNotExist):
-            return Response({"error": "Slave SAE or KME not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": _("Slave SAE or KME not found")}, status=status.HTTP_404_NOT_FOUND)
 
         if request.method == 'POST':
             # --- POST: Le SAE maître génère les clés ---
@@ -85,19 +90,19 @@ class KMEViewSet(viewsets.ViewSet):
             # Récupérer l'ID du SAE maître à partir de la requête
             master_sae_id = request.data.get('master_sae_id', None)
             if not master_sae_id:
-                return Response({"error": "Master SAE ID not provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": _("Master SAE ID not provided")}, status=status.HTTP_400_BAD_REQUEST)
 
             # Récupérer le SAE maître
             try:
                 master_sae = SAE.objects.get(sae_id=master_sae_id, is_master=True)
             except SAE.DoesNotExist:
-                return Response({"error": "Master SAE not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": _("Master SAE not found")}, status=status.HTTP_404_NOT_FOUND)
 
             # Récupérer le KME connecté au SAE maître
             try:
                 kme_master = KME.objects.get(kme_id=master_sae.kme_id)
             except KME.DoesNotExist:
-                return Response({"error": "KME not found for the Master SAE"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": _("KME not found for the Master SAE")}, status=status.HTTP_404_NOT_FOUND)
 
             # connection sur le meme KME
             if kme_slave.kme_id == kme_master.kme_id:
@@ -144,7 +149,7 @@ class KMEViewSet(viewsets.ViewSet):
             keys = KeyMaterial.objects.filter(consult_by=slave_sae)
 
             if not keys.exists():
-                return Response({"error": "No keys found for this Slave SAE"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": _("No keys found for this Slave SAE")}, status=status.HTTP_404_NOT_FOUND)
 
             # Préparer la réponse avec les clés chiffrées
             key_data = [{"key_ID": str(key.key_id), "key": key.encrypted_key} for key in keys]
