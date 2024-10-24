@@ -53,7 +53,7 @@ def generate_bb84_keys(num_keys, num_bits_per_key):
         bob_bits.reverse()
 
         # Générer la clé à partir des bases correspondantes entre Alice et Bob
-        key = [alice_bits[i] for i in range(num_bits_per_key) if alice_basis[i] == bob_basis[i]]
+        key = [int(alice_bits[i]) for i in range(num_bits_per_key) if alice_basis[i] == bob_basis[i]]
 
         # Ajouter la clé à la liste des clés générées
         all_keys.append(key)

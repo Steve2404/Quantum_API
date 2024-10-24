@@ -1,26 +1,33 @@
+import base64
+
+from Crypto.Random import get_random_bytes
 from django.utils.translation import gettext as _
 from django.utils import translation
-from Crypto.Random import get_random_bytes
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import SAE, KME, update_sae_communication, KeyMaterial
 from .serializers import StatusSerializer
 from .bb84 import generate_bb84_keys
+from .encryptor import hash_key, decrypt_key_aes
 from .service import store_generated_keys, update_kme_key_count, create_kme_connection, get_additional_slave
+
+translation.activate('de')
 
 
 class KMEViewSet(viewsets.ViewSet):
-    translation.activate('de')
-    _("""
+    """
     ViewSet pour gérer les requêtes liées au KME.
-    """)
+    """
 
     @action(detail=True, methods=['get'], url_path='status')
     def get_status(self, request, pk=None):
 
         """
-        Endpoint pour récupérer le statut des clés pour un SAE esclave. https://{KME_hostname}/api/v1/keys/{slave_SAE_ID}/status
+
+        Endpoint pour récupérer le statut des clés pour un SAE esclave.
+        https://{KME_hostname}/api/v1/keys/{
+        slave_SAE_ID}/status
             
         """
 
@@ -80,13 +87,6 @@ class KMEViewSet(viewsets.ViewSet):
         if request.method == 'POST':
             # --- POST: Le SAE maître génère les clés ---
 
-            # Ici, on suppose que le SAE maître est l'utilisateur qui effectue la requête
-            # master_sae = request.user
-            # print(f"nom user: {master_sae}")
-            # if not master_sae.is_master:
-            #     return Response({"error": "Only master SAE can generate keys"},
-            #     status=status.HTTP_403_FORBIDDEN)
-
             # Récupérer l'ID du SAE maître à partir de la requête
             master_sae_id = request.data.get('master_sae_id', None)
             if not master_sae_id:
@@ -120,7 +120,8 @@ class KMEViewSet(viewsets.ViewSet):
                 # Générer les clés BB84
                 bb84_keys = generate_bb84_keys(num_keys=number_of_keys, num_bits_per_key=num_bits_per_key)
 
-                # Générer une clé AES pour le chiffrement
+                # Hashe la clé AES pour le chiffrement
+                # aes_key = hash_key(bb84_keys[0])
                 aes_key = get_random_bytes(16)
 
                 # Ajouter d'autres SAEs esclaves si nécessaire
@@ -155,3 +156,40 @@ class KMEViewSet(viewsets.ViewSet):
             key_data = [{"key_ID": str(key.key_id), "key": key.encrypted_key} for key in keys]
 
             return Response({"keys": key_data}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'post'], url_path='dec_keys')
+    def get_keys_by_ids(self, request, pk=None):
+        """
+        Endpoint pour récupérer des clés spécifiques avec leurs key_IDs pour un SAE esclave.
+        https://{KME_hostname}/api/v1/keys/{master_SAE_ID}/dec_keys?key_ID=bc490419-7d60-487f-adc1-4ddcc177c139
+        """
+        # Récupérer le SAE maître via l'ID passé dans l'URL
+        try:
+            master_sae = SAE.objects.get(sae_id=pk, is_master=True)
+            print(f"master id: {master_sae}")
+        except SAE.DoesNotExist:
+            return Response({"error": "Master SAE not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Récupérer les key_IDs depuis les paramètres de la requête GET
+        key_ids = request.query_params.get('key_ID')
+
+        if not key_ids:
+            return Response({"error": "No key IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Récupérer les clés associées aux key_IDs fournis
+        keys = KeyMaterial.objects.filter(key_id=key_ids)
+
+        if not keys.exists():
+            return Response({"error": "No keys found for the provided key IDs"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Préparer la réponse avec les clés déchiffrées
+        keys_data = []
+        for key_material in keys:
+            aes_key = base64.b64decode(key_material.aes_key)
+            decrypted_key = decrypt_key_aes(key_material.encrypted_key, aes_key)
+            keys_data.append({
+                "key_ID": str(key_material.key_id),
+                "decrpyted_key": decrypted_key,
+            })
+
+        return Response({"keys": keys_data}, status=status.HTTP_200_OK)

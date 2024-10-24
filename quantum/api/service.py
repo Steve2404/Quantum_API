@@ -1,3 +1,4 @@
+import base64
 import uuid
 
 from django.db import transaction
@@ -5,7 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from .models import KeyMaterial, Key, KMEConnection, KME, SAE
-from .encryptor import encrypt_key_aes, key_reformat
+from .encryptor import encrypt_key_aes, hash_key
 
 
 def store_generated_keys(keys, aes_key, origin_sae, target_saes):
@@ -16,12 +17,17 @@ def store_generated_keys(keys, aes_key, origin_sae, target_saes):
     stored_keys = []
     with transaction.atomic():  # Assurer l'intégrité transactionnelle
         for key in keys:
-            key = key_reformat(key)
-            encrypted_data = encrypt_key_aes(key, aes_key)
+            # print(key)
+            key_str = ''.join(map(str, key))
+            # key = normalize_key(key)
+            encrypted_data = encrypt_key_aes(key_str, aes_key)
+            aes_key_encoded = base64.b64encode(aes_key).decode('utf-8')
+
             key_id = uuid.uuid4()
             key_material = KeyMaterial.objects.create(
                 key_id=key_id,
                 encrypted_key=encrypted_data['ciphertext'],
+                aes_key=aes_key_encoded,
                 iv=encrypted_data['iv']
             )
             key_material.consult_by.set(target_saes)
@@ -29,7 +35,7 @@ def store_generated_keys(keys, aes_key, origin_sae, target_saes):
 
             key_instance = Key.objects.create(
                 key_id=key_id,
-                key_data=key,  # Version non chiffrée, si nécessaire
+                key_data=base64.b64decode(encrypted_data['ciphertext']),  # Version non chiffrée, si nécessaire
                 origin_sae=origin_sae,
                 size=len(key)  # Taille en bits
             )

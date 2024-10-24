@@ -1,4 +1,6 @@
 import uuid
+
+from Crypto.Random import get_random_bytes
 from django.db import models
 from django.utils.translation import gettext as _
 
@@ -65,6 +67,7 @@ class KMEConnection(models.Model):
 class KeyMaterial(models.Model):
     key_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
     encrypted_key = models.TextField()  # La clé chiffrée (en base64)
+    aes_key = models.TextField(default=get_random_bytes(16))
     iv = models.TextField()  # Le vecteur d'initialisation AES
     consult_by = models.ManyToManyField(SAE, related_name='consulted_keys')
     created_at = models.DateTimeField(auto_now_add=True)
