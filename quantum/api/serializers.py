@@ -1,11 +1,33 @@
+from django.contrib.auth.models import User
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 from .models import KME, SAE, Key
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """
+        Serializer for SAE Authentication
+    """
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'password']
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password']
+        )
+        return user
 
 
 class SAESerializer(serializers.ModelSerializer):
     """
-    Sérialiseur pour l'entité SAE.
+    Serializer for the SAE entity.
     """
+
     class Meta:
         model = SAE
         fields = ['sae_id', 'name', 'is_master', 'sae_certificate_serial']
@@ -13,9 +35,9 @@ class SAESerializer(serializers.ModelSerializer):
 
 class KMESerializer(serializers.ModelSerializer):
     """
-    Sérialiseur pour l'entité KME avec les SAE inclus.
+    Serializer for the KME entity with the included SAEs.
     """
-    saes = SAESerializer(many=True, read_only=True)  # Inclure les SAE associés dans la réponse
+    saes = SAESerializer(many=True, read_only=True)  # Include the associated SAEs in the response.
 
     class Meta:
         model = KME
@@ -25,18 +47,19 @@ class KMESerializer(serializers.ModelSerializer):
 
 class KeySerializer(serializers.ModelSerializer):
     """
-    Sérialiseur pour l'entité Key.
+    Serializer for the Key entity.
     """
-    origin_sae = SAESerializer(read_only=True)  # Inclure les détails du SAE maître
-    target_saes = SAESerializer(many=True, read_only=True)  # Inclure les détails des SAE esclaves
+    origin_sae = SAESerializer(read_only=True)  # Include the details of the master SAE.
+    target_saes = SAESerializer(many=True, read_only=True)  # Include the details of the slave SAEs.
 
     class Meta:
         model = Key
         fields = ['key_id', 'key_data', 'size', 'origin_sae', 'target_saes', 'created_at']
 
+
 class StatusSerializer(serializers.Serializer):
     """
-    Sérialiseur personnalisé pour l'endpoint GET /status
+    Custom serializer for the GET /status endpoint.
     """
     source_KME_ID = serializers.CharField()
     target_KME_ID = serializers.CharField()

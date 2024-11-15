@@ -1,5 +1,6 @@
 import base64
 import uuid
+import requests
 
 from django.db import transaction
 from rest_framework import status
@@ -11,15 +12,13 @@ from .encryptor import encrypt_key_aes, hash_key
 
 def store_generated_keys(keys, aes_key, origin_sae, target_saes):
     """
-    Stocke les clés générées après leur chiffrement dans la base de données via KeyMaterial.
+    Stores the generated keys after encryption in the database via KeyMaterial.
     """
 
     stored_keys = []
-    with transaction.atomic():  # Assurer l'intégrité transactionnelle
+    with transaction.atomic():  # Ensure transactional integrity.
         for key in keys:
-            # print(key)
             key_str = ''.join(map(str, key))
-            # key = normalize_key(key)
             encrypted_data = encrypt_key_aes(key_str, aes_key)
             aes_key_encoded = base64.b64encode(aes_key).decode('utf-8')
 
@@ -35,14 +34,14 @@ def store_generated_keys(keys, aes_key, origin_sae, target_saes):
 
             key_instance = Key.objects.create(
                 key_id=key_id,
-                key_data=base64.b64decode(encrypted_data['ciphertext']),  # Version non chiffrée, si nécessaire
+                key_data=base64.b64decode(encrypted_data['ciphertext']),  # Unencrypted version, if needed.
                 origin_sae=origin_sae,
-                size=len(key)  # Taille en bits
+                size=len(key)  # Size in bits
             )
             key_instance.target_saes.set(target_saes)
             key_instance.save()
 
-            # Ajout des informations sur la clé à la liste des clés stockées pour la réponse
+            # Adding key information to the list of stored keys for the response.
             stored_keys.append({
                 "key_ID": str(key_id),
                 "encrypted_key": encrypted_data['ciphertext']
@@ -52,7 +51,7 @@ def store_generated_keys(keys, aes_key, origin_sae, target_saes):
 
 def create_kme_connection(source_kme, target_kme, connection_certificate):
     """
-    Crée ou met à jour la connexion entre deux KMEs.
+    Creates or updates the connection between two KMEs.
     """
     connection, created = KMEConnection.objects.get_or_create(
         source_kme=source_kme,
@@ -66,20 +65,20 @@ def create_kme_connection(source_kme, target_kme, connection_certificate):
 
 def create_connection_between_kmes(request):
     """
-    Crée une connexion entre deux KMEs.
+    Creates a connection between two KMEs.
     """
     source_kme_id = request.data.get('source_kme_id')
     target_kme_id = request.data.get('target_kme_id')
     certificate = request.data.get('certificate')
 
-    # Récupérer les KMEs
+    # Retrieve the KMEs.
     try:
         source_kme = KME.objects.get(kme_id=source_kme_id)
         target_kme = KME.objects.get(kme_id=target_kme_id)
     except KME.DoesNotExist:
         return Response({"error": "KME not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # Créer ou mettre à jour la connexion
+    # Create or update the connection.
     create_kme_connection(source_kme, target_kme, certificate)
 
     return Response({"message": "Connection created or updated successfully."}, status=status.HTTP_200_OK)
@@ -87,28 +86,76 @@ def create_connection_between_kmes(request):
 
 def update_kme_key_count(kme, new_keys_count):
     """
-    Met à jour le nombre de clés stockées dans un KME après génération ou échange de clés.
+    Updates the number of stored keys in a KME after key generation or exchange.
     """
     kme.stored_key_count += new_keys_count
     if kme.stored_key_count > kme.max_key_count:
-        raise ValueError("La capacité maximale de stockage de clés du KME a été atteinte.")
+        raise ValueError("The maximum key storage capacity of the KME has been reached.")
     kme.save()
 
 
 def get_additional_slave(request, add_slave_id):
     add_slave_sae_ids = request.data.get(add_slave_id, [])
 
-    # Si add_slave_sae_ids est une chaîne, convertis-le en liste
+    # If add_slave_sae_ids is a string, convert it to a list.
     if isinstance(add_slave_sae_ids, str):
         add_slave_sae_ids = [add_slave_sae_ids]
 
     if not add_slave_sae_ids:
         return []
-    # Récupérer les instances SAE correspondantes aux IDs fournis
+    # Retrieve the SAE instances corresponding to the provided IDs.
     slave_saes = SAE.objects.filter(sae_id__in=add_slave_sae_ids)
 
-    # Vérifier si des SAE n'ont pas été trouvés
+    # Check if any SAEs were not found.
     if not slave_saes.exists():
         return Response({"error": "One or more slave SAE IDs not found"}, status=status.HTTP_404_NOT_FOUND)
     return slave_saes
+
+
+def get_kme_certificate(kme):
+    """
+    Function to retrieve the certificate of a KME from its model.
+
+    """
+    if not kme.certificate:
+        raise ValueError(f"Le KME {kme.name} has no certificate.")
+    return kme.certificate
+
+
+def validate_certificate(cert1, cert2):
+    """
+    Validate that two certificates are compatible/equal.
+
+    """
+    # A simple example of direct comparison of certificates.
+    return cert1 == cert2
+
+
+def validate_certificates(kme_master, kme_slave):
+    """
+    Validate the certificates between the master KME and the slave KME.
+
+    """
+    try:
+        cert_master = get_kme_certificate(kme_master)
+        cert_slave = get_kme_certificate(kme_slave)
+
+        # Call a function that validates the certificates against each other.
+        return validate_certificate(cert_master, cert_slave)
+    except ValueError as e:
+        # Error handling if one of the KMEs does not have a certificate.
+        return False
+
+
+def send_keys_to_kme2(kme_slave, sae_slave, stored_keys, aes_key):
+
+    data = {
+        "sae_slave_id": str(sae_slave.sae_id),
+        "keys": stored_keys,
+        "aes_key": base64.b64encode(aes_key).decode('utf-8')
+    }
+    response = requests.post(f"{kme_slave.hostname}/api/v1/keys/enc_keys/", json=data)
+    return response
+
+
 

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,18 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'api',
-    'django_extensions',
-    'sslserver',
 ]
-
-# REST_FRAMEWORK = {
-#     'DEFAULT_RENDERER_CLASSES': (
-#         'rest_framework.renderers.JSONRenderer',
-#     ),
-#     'DEFAULT_PARSER_CLASSES': (
-#         'rest_framework.parsers.JSONParser',
-#     ),
-# }
 
 
 MIDDLEWARE = [
@@ -81,6 +71,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'quantum.wsgi.application'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,  # Django secret key.
+}
 
 
 # Database
@@ -145,14 +150,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Ajouter les configurations pour HTTPS en mode local
-# Désactiver la redirection automatique vers HTTPS (utile si vous testez à la fois HTTP
-# et HTTPS en local)
-SECURE_SSL_REDIRECT = False
 
-# Autoriser toutes les hôtes dans un environnement de développement
+# Allow all hosts in a development environment.
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-# Désactiver les cookies sécurisés si vous testez uniquement en local avec HTTPS
-CSRF_COOKIE_SECURE = False
-SESSION_COOKIE_SECURE = False
+
